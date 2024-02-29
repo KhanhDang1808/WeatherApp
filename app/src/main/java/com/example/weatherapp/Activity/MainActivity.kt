@@ -5,15 +5,21 @@ import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.weatherapp.Adapter.ForecastAdapter
 import com.example.weatherapp.R
 import com.example.weatherapp.ViewModel.WeatherViewModel
 import com.example.weatherapp.databinding.ActivityMainBinding
 import com.example.weatherapp.model.CurrentResponeApi
+import com.example.weatherapp.model.ForecastResponseApi
 import com.github.matteobattilana.weather.PrecipType
 import com.google.android.material.snackbar.Snackbar
+import eightbitlab.com.blurview.RenderScriptBlur
 import retrofit2.Call
 import retrofit2.Response
 import java.util.Calendar
@@ -21,6 +27,7 @@ import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding:ActivityMainBinding
+    private val forecastAdapter by lazy {  ForecastAdapter()}
     private val calendar by lazy { Calendar.getInstance() } //được sử dụng để làm việc với thời gian và ngày tháng
     private val weatherViewModel: WeatherViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,11 +40,11 @@ class MainActivity : AppCompatActivity() {
             statusBarColor = Color.TRANSPARENT
         }
         binding.apply {
-            val lat = 44.34
-            val lon = 10.99
+            val lat = 21.0278
+            val lon = 105.8342
             val name = "Ha Noi"
 
-
+            // current temp
             cityText.text=name
             progressBar.visibility = View.VISIBLE
             weatherViewModel.loadCurrentWeather(lat,lon,"metric").enqueue(object :
@@ -69,6 +76,53 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 override fun onFailure(call: Call<CurrentResponeApi>, t: Throwable) {
+                    Snackbar.make(binding.root,t.toString(),Snackbar.LENGTH_INDEFINITE).show()
+                }
+
+            })
+
+
+            //setting Blue view
+            var radius = 10.0f
+            val decorView = window.decorView
+            val rootView = (decorView.findViewById(android.R.id.content)as ViewGroup?)
+            val windowBackground=decorView.background
+
+            rootView?.let {
+                blurView.setupWith(it,RenderScriptBlur(this@MainActivity))
+                    .setFrameClearDrawable(windowBackground)
+                    .setBlurRadius(radius)
+                blurView.outlineProvider = ViewOutlineProvider.BACKGROUND
+                blurView.clipToOutline= true
+            }
+
+
+            //forecast temp
+            weatherViewModel.loadForecastWeather(lat,lon,"metric")
+                .enqueue(object :
+                    retrofit2.Callback<ForecastResponseApi>{
+                override fun onResponse(
+                    call: Call<ForecastResponseApi>,
+                    response: Response<ForecastResponseApi>
+                ) {
+                    if(response.isSuccessful){
+                        val data = response.body()
+                        blurView.visibility=View.VISIBLE
+                        data?.let {
+                            forecastAdapter.differ.submitList((it.list))
+                            rclForecastWeather.apply {
+                                layoutManager = LinearLayoutManager(
+                                    this@MainActivity,
+                                    LinearLayoutManager.HORIZONTAL,
+                                    false
+                                )
+                                adapter=forecastAdapter
+                            }
+                        }
+                    }
+                }
+
+                override fun onFailure(call: Call<ForecastResponseApi>, t: Throwable) {
                     Snackbar.make(binding.root,t.toString(),Snackbar.LENGTH_INDEFINITE).show()
                 }
 
