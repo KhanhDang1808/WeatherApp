@@ -1,6 +1,6 @@
 package com.example.weatherapp.Activity
 
-import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -8,7 +8,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.weatherapp.Adapter.ForecastAdapter
@@ -26,13 +25,13 @@ import java.util.Calendar
 import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var binding:ActivityMainBinding
-    private val forecastAdapter by lazy {  ForecastAdapter()}
+    private lateinit var binding: ActivityMainBinding
+    private val forecastAdapter by lazy { ForecastAdapter() }
     private val calendar by lazy { Calendar.getInstance() } //được sử dụng để làm việc với thời gian và ngày tháng
     private val weatherViewModel: WeatherViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding= ActivityMainBinding.inflate(layoutInflater)
+        binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         window.apply {
@@ -40,43 +39,55 @@ class MainActivity : AppCompatActivity() {
             statusBarColor = Color.TRANSPARENT
         }
         binding.apply {
-            val lat = 21.0278
-            val lon = 105.8342
-            val name = "Ha Noi"
+            var lat = intent.getDoubleExtra("lat", 0.0)
+            var lon = intent.getDoubleExtra("lon", 0.0)
+            var name = intent.getStringExtra("name")
 
+            if (lat == 0.0) {
+                lat = 21.0278
+                lon = 105.8342
+                name = "Ha Noi"
+            }
+
+            addCity.setOnClickListener {
+                startActivity(Intent(this@MainActivity, CityListActivity::class.java))
+            }
             // current temp
-            cityText.text=name
+            cityText.text = name
             progressBar.visibility = View.VISIBLE
-            weatherViewModel.loadCurrentWeather(lat,lon,"metric").enqueue(object :
+            weatherViewModel.loadCurrentWeather(lat, lon, "metric").enqueue(object :
                 retrofit2.Callback<CurrentResponeApi> {
                 override fun onResponse(
                     call: Call<CurrentResponeApi>,
                     response: Response<CurrentResponeApi>
                 ) {
-                    if(response.isSuccessful){
+                    if (response.isSuccessful) {
                         val data = response.body()
-                        progressBar.visibility= View.GONE
+                        progressBar.visibility = View.GONE
                         detailLayout.visibility = View.VISIBLE
-                        data?.let{ it ->
-                            humidityText.text=it.main?.humidity?.let { "$it%" }
+                        data?.let { it ->
+                            humidityText.text = it.main?.humidity?.let { "$it%" }
                             statusText.text = it.weather?.get(0)?.main ?: "-"
-                            windText.text = it.wind.speed.let { it.roundToInt().toString() + "Km"}
-                            currentTempText.text = it.main?.temp?.let { it.roundToInt().toString() +"°" }
-                            maxTempText.text = it.main?.tempMax?.let { it.roundToInt().toString() +"°" }
-                            minTempText.text = it.main?.tempMin?.let { it.roundToInt().toString() +"°" }
+                            windText.text = it.wind.speed.let { it.roundToInt().toString() + "Km" }
+                            currentTempText.text =
+                                it.main?.temp?.let { it.roundToInt().toString() + "°" }
+                            maxTempText.text =
+                                it.main?.tempMax?.let { it.roundToInt().toString() + "°" }
+                            minTempText.text =
+                                it.main?.tempMin?.let { it.roundToInt().toString() + "°" }
                             cityText.text = it.name?.uppercase()
-                            val drawable = if(isNightNow()) R.drawable.night_bg
-                            else{
-                               setDynamicallyWallpaper(it.weather?.get(0)?.icon ?:"-")
+                            val drawable = if (isNightNow()) R.drawable.night_bg
+                            else {
+                                setDynamicallyWallpaper(it.weather?.get(0)?.icon ?: "-")
                             }
                             bgImage.setImageResource(drawable)
-                            setDynamicallyWallpaper(it.weather?.get(0)?.icon?:"-")
+                            setDynamicallyWallpaper(it.weather?.get(0)?.icon ?: "-")
                         }
                     }
                 }
 
                 override fun onFailure(call: Call<CurrentResponeApi>, t: Throwable) {
-                    Snackbar.make(binding.root,t.toString(),Snackbar.LENGTH_INDEFINITE).show()
+                    Snackbar.make(binding.root, t.toString(), Snackbar.LENGTH_INDEFINITE).show()
                 }
 
             })
@@ -85,103 +96,116 @@ class MainActivity : AppCompatActivity() {
             //setting Blue view
             var radius = 10.0f
             val decorView = window.decorView
-            val rootView = (decorView.findViewById(android.R.id.content)as ViewGroup?)
-            val windowBackground=decorView.background
+            val rootView = (decorView.findViewById(android.R.id.content) as ViewGroup?)
+            val windowBackground = decorView.background
 
             rootView?.let {
-                blurView.setupWith(it,RenderScriptBlur(this@MainActivity))
+                blurView.setupWith(it, RenderScriptBlur(this@MainActivity))
                     .setFrameClearDrawable(windowBackground)
                     .setBlurRadius(radius)
                 blurView.outlineProvider = ViewOutlineProvider.BACKGROUND
-                blurView.clipToOutline= true
+                blurView.clipToOutline = true
             }
 
 
             //forecast temp
-            weatherViewModel.loadForecastWeather(lat,lon,"metric")
+            weatherViewModel.loadForecastWeather(lat, lon, "metric")
                 .enqueue(object :
-                    retrofit2.Callback<ForecastResponseApi>{
-                override fun onResponse(
-                    call: Call<ForecastResponseApi>,
-                    response: Response<ForecastResponseApi>
-                ) {
-                    if(response.isSuccessful){
-                        val data = response.body()
-                        blurView.visibility=View.VISIBLE
-                        data?.let {
-                            forecastAdapter.differ.submitList((it.list))
-                            rclForecastWeather.apply {
-                                layoutManager = LinearLayoutManager(
-                                    this@MainActivity,
-                                    LinearLayoutManager.HORIZONTAL,
-                                    false
-                                )
-                                adapter=forecastAdapter
+                    retrofit2.Callback<ForecastResponseApi> {
+                    override fun onResponse(
+                        call: Call<ForecastResponseApi>,
+                        response: Response<ForecastResponseApi>
+                    ) {
+                        if (response.isSuccessful) {
+                            val data = response.body()
+                            blurView.visibility = View.VISIBLE
+                            data?.let {
+                                forecastAdapter.differ.submitList((it.list))
+                                rclForecastWeather.apply {
+                                    layoutManager = LinearLayoutManager(
+                                        this@MainActivity,
+                                        LinearLayoutManager.HORIZONTAL,
+                                        false
+                                    )
+                                    adapter = forecastAdapter
+                                }
                             }
                         }
                     }
-                }
 
-                override fun onFailure(call: Call<ForecastResponseApi>, t: Throwable) {
-                    Snackbar.make(binding.root,t.toString(),Snackbar.LENGTH_INDEFINITE).show()
-                }
+                    override fun onFailure(call: Call<ForecastResponseApi>, t: Throwable) {
+                        Snackbar.make(binding.root, t.toString(), Snackbar.LENGTH_INDEFINITE).show()
+                    }
 
-            })
+                })
         }
     }
-    private fun isNightNow():Boolean{
-        return  calendar.get(Calendar.HOUR_OF_DAY)>=18
+
+    private fun isNightNow(): Boolean {
+        return calendar.get(Calendar.HOUR_OF_DAY) >= 18
     }
-    private  fun setDynamicallyWallpaper(icon:String):Int{
-        return  when(icon.dropLast(1)){
-                "01"->{
-                      initWeatherView(PrecipType.CLEAR)
-                    R.drawable.snow_bg
-                }
-            "02","03","04"->{
+
+    private fun setDynamicallyWallpaper(icon: String): Int {
+        return when (icon.dropLast(1)) {
+            "01" -> {
+                initWeatherView(PrecipType.CLEAR)
+                R.drawable.snow_bg
+            }
+
+            "02", "03", "04" -> {
                 initWeatherView(PrecipType.CLEAR)
                 R.drawable.cloudy_bg
             }
-            "09","10","11"->{
+
+            "09", "10", "11" -> {
                 initWeatherView(PrecipType.RAIN)
                 R.drawable.rainy_bg
             }
-            "13"->{
+
+            "13" -> {
                 initWeatherView(PrecipType.SNOW)
                 R.drawable.snow_bg
             }
-            "50"->{
+
+            "50" -> {
                 initWeatherView(PrecipType.CLEAR)
                 R.drawable.haze_bg
             }
+
             else -> 0
         }
     }
-    private  fun setEffectRainSnow(icon:String){
-          when(icon.dropLast(1)){
-            "01"->{
+
+    private fun setEffectRainSnow(icon: String) {
+        when (icon.dropLast(1)) {
+            "01" -> {
                 initWeatherView(PrecipType.CLEAR)
             }
-            "02","03","04"->{
+
+            "02", "03", "04" -> {
                 initWeatherView(PrecipType.CLEAR)
             }
-            "09","10","11"->{
+
+            "09", "10", "11" -> {
                 initWeatherView(PrecipType.RAIN)
             }
-            "13"->{
+
+            "13" -> {
                 initWeatherView(PrecipType.SNOW)
                 R.drawable.snow_bg
             }
-            "50"->{
+
+            "50" -> {
                 initWeatherView(PrecipType.CLEAR)
             }
         }
     }
-    private  fun initWeatherView(type:PrecipType){
+
+    private fun initWeatherView(type: PrecipType) {
         binding.weatherView.apply {
             setWeatherData((type))
-            angle=-20
-            emissionRate=100.0f
+            angle = -20
+            emissionRate = 100.0f
         }
     }
 
